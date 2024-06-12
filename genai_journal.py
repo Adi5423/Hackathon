@@ -8,6 +8,52 @@ import base64
 import random
 import matplotlib.pyplot as plt
 import pandas as pd
+import datetime
+import pyttsx3
+import speech_recognition as sr
+
+def speak(text):
+                engine.say(text)
+                engine.runAndWait()
+
+# Initialize the engine
+engine = pyttsx3.init()
+# Set the voice
+voices = engine.getProperty('voices')
+try:
+    engine.setProperty('voice', voices[1].id)
+except:
+    engine.setProperty('voice', voices[0].id)
+
+def wishMe():
+    hour = int(datetime.datetime.now().hour)
+    if hour >= 0 and hour < 12:
+        speak("  Good morning!")
+        speak("Great to see you here. All set to start some questions!")
+    elif hour >= 12 and hour < 18:
+        speak(" Good afternoon!")
+        speak("Great to see you here. All set to start some questions!")
+    else:
+        speak("   Good evening!")
+        speak("Great to see you here. All set to start some questions!")
+    # speak("Great to see you here. All set to start some questions!")
+
+def takeCommand():
+            r = sr.Recognizer()
+            with sr.Microphone() as source:
+                print("Listening...")
+                r.pause_threshold = 1
+                audio = r.listen(source)
+            try:
+                print("Recognizing...")
+                query = r.recognize_google(audio, language='en-in')
+                print(f"User said: {query}\n")
+            except Exception as e:
+                speak("  Sorry sir. Say that again please...")
+                return "None"
+            return query
+
+
 
 client = Groq(
     api_key="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",
@@ -70,10 +116,6 @@ def text_to_audio(script):
     tts.save("day1.mp3")
 
 
-
-
-
-
 # Initialize session state
 if "responses" not in st.session_state:
     st.session_state["responses"] = []
@@ -83,23 +125,19 @@ if "current_question" not in st.session_state:
 # Left Panel with sections
 st.sidebar.title("GenAI Journal")
 
+# Add a checkbox to the sidebar
+tick_enabled = st.sidebar.checkbox("Enable Tick", value=False)
+
 # Section selection
 selected_section = st.sidebar.radio("Select a Section", ["Intro","Question - Answering", "Script generation", "Convert Script to Audio", "Create Video", "Report"])
 
-# Initialize the session state for the button label
-if "script_button_label" not in st.session_state:
-    st.session_state.script_button_label = "Generate Script"
-
-# Initialize the session state for the generated script
-if "generated_script" not in st.session_state:
-    st.session_state.generated_script = ""
-
+if tick_enabled:
+    # Run the whole code
+    pass
 
 # Section 1: Intro
 if selected_section == "Intro":
     st.sidebar.header("1. Intro")
-
-    
     st.header("Welcome to the GenAI Journal!")
     st.write("""
     * Revolutionize your journaling experience with cutting-edge AI technology
@@ -112,77 +150,88 @@ if selected_section == "Intro":
     if st.button("Get Started"):
         selected_section = "Question - Answering"
 
-        
-    
-
-
 # Section 1: Question - Answering
 elif selected_section == "Question - Answering":
     st.sidebar.header("2. Question - Answering")
 
-    # Display current question
+    def read_question(question):
+        speak(question["question"])
+
+    def read_options(options):
+        for i, option in enumerate(options, start=1):
+            speak(f"Option {i}: {option}")
+
+    def take_user_input():
+        user_input = takeCommand()
+        return user_input
+
+    def store_response(question_index, user_response):
+        store_responses(question_index, user_response, "")
+
     def display_question(question_index):
         question = questions[question_index]
-        st.subheader(question["question"])
+        read_question(question)
+        read_options(question["options"])
+        user_input = take_user_input()
+        for i, option in enumerate(question["options"]):
+            if user_input.lower() == option.lower():
+                store_response(question_index, option)
+                speak("Moving on to the next question, sir.")
+                return
+        speak("Sorry, I didn't understand that. Please try again.")
+        display_question(question_index)
 
-        # Check if there's already a stored response for this question index
-        stored_response = next((response for idx, response, _ in st.session_state["responses"] if idx == question_index), None)
-        default_index = question["options"].index(stored_response) if stored_response in question["options"] else 0
-
-        user_response = st.radio("", question["options"], index=default_index, key=f"question_{question_index}")
-
-        st.subheader("Any explanation or additional input?")
-        # Check if there's already a stored free text response for this question index
-        stored_text = next((text for idx, _, text in st.session_state["responses"] if idx == question_index), "")
-
-        free_text = st.text_area("", value=stored_text, key=f"text_{question_index}", height=30)
-
-        # Store responses immediately
-        store_responses(question_index, user_response, free_text)
-
-        return user_response, free_text
-
-    if "responses" in st.session_state and st.session_state["responses"]:
-        qna_pair = []
-        for question_index, response, text in st.session_state["responses"]:
-            temp = {"questions" : questions[question_index]["question"],
-                        "answer" : response,
-                        "extra_inputs" : text }
-            qna_pair.append(temp)
-
-        json_string = json.dumps(qna_pair)
-
-
-    # Navigation buttons
-    col1, col2, col3 = st.columns([1, 1, 1])
-
-    with col1:
-        if st.session_state["current_question"] > 0:
-            if st.button("Previous"):
-                st.session_state["current_question"] -= 1
-
-    with col3:
-        if st.session_state["current_question"] < len(questions) - 1:
-            if st.button("Next"):
-                st.session_state["current_question"] += 1
-
-    with col2:
-        if st.session_state["current_question"] == len(questions) - 1:
-            # st.download_button(
-            #                          label="Download JSON",
-            #                         file_name="data.json",
-            #                         mime="application/json",
-            #                         data=json_string,
-            #                     )
-            if st.button("Submit"):
-                st.session_state["current_question"] += 1
-
-    # Display current question
-    if st.session_state["current_question"] < len(questions):
-        current_question_index = st.session_state["current_question"]
-        display_question(current_question_index)
+    if tick_enabled:
+        for question_index in range(len(questions)):
+            display_question(question_index)
     else:
-        st.subheader("Thank you for answering all the questions!")
+        # Display current question
+        def display_question(question_index):
+            question = questions[question_index]
+            read_question(question)
+            read_options(question["options"])
+            speak("The options are:")
+            for i, option in enumerate(question["options"], start=1):
+                speak(f"Option {i}: {option}")
+            user_input = takeCommand()
+            for i, option in enumerate(question["options"]):
+                if user_input.lower() == option.lower():
+                    store_response(question_index, option)
+                    speak("Moving on to the next question, sir.")
+                    return
+            speak("Sorry, I didn't understand that. Please try again.")
+            display_question(question_index)
+
+        # Navigation buttons
+        col1, col2, col3 = st.columns([1, 1, 1])
+
+        with col1:
+            if st.session_state["current_question"] > 0:
+                if st.button("Previous"):
+                    st.session_state["current_question"] -= 1
+
+        with col3:
+            if st.session_state["current_question"] < len(questions) - 1:
+                if st.button("Next"):
+                    st.session_state["current_question"] += 1
+
+        with col2:
+            if st.session_state["current_question"] == len(questions) - 1:
+                # st.download_button(
+                #                          label="Download JSON",
+                #                         file_name="data.json",
+                #                         mime="application/json",
+                #                         data=json_string,
+                #                     )
+                if st.button("Submit"):
+                    st.session_state["current_question"] += 1
+
+        # Display current question
+        if st.session_state["current_question"] < len(questions):
+            current_question_index = st.session_state["current_question"]
+            display_question(current_question_index)
+        else:
+            st.subheader("Thank you for answering all the questions!")
 
 # Section 2: Script generation from previously answered questions
 elif selected_section == "Script generation":
