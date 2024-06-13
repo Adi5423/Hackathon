@@ -77,12 +77,12 @@ def store_responses(question_index, user_response, free_text):
     response_found = False
     for i, (idx, _, _) in enumerate(st.session_state["responses"]):
         if idx == question_index:
-            st.session_state["responses"][i] = (question_index, user_response, free_text)
+            st.session_state["responses"][i] = (question_index, user_response.encode('utf-8').decode('utf-8'), free_text)
             response_found = True
             break
     # If response not found, add it
     if not response_found:
-        st.session_state["responses"].append((question_index, user_response, free_text))
+        st.session_state["responses"].append((question_index, user_response.encode('utf-8').decode('utf-8'), free_text))
 
 # Function to generate script
 def generate_script(qna_pairs):
